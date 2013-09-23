@@ -153,7 +153,7 @@ object logReg {
   def main(args: Array[String]) {
 
     val w = Vector(D + 1, _ => 1) // data generalized =>  D + 1
-    val iteration = 50
+    val iteration = 40
     val learningRate = 1
     val testThreshold = 0.5
     localLogReg(w, iteration, learningRate, testThreshold)
