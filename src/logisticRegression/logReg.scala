@@ -128,7 +128,7 @@ object logReg {
 
       /**
        * Note that boundary visualization is a 2dPlot
-       * PCA is needed to project data cloud to the first plane
+       * PCA is needed for projecting data to the first plane
        */
 
       subplot(2, 1, 2)
@@ -153,7 +153,7 @@ object logReg {
   def main(args: Array[String]) {
 
     val w = Vector(D + 1, _ => 1) // data generalized =>  D + 1
-    val iteration = 40
+    val iteration = 50
     val learningRate = 1
     val testThreshold = 0.5
     localLogReg(w, iteration, learningRate, testThreshold)
