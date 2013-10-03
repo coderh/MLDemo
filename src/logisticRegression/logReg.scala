@@ -2,11 +2,11 @@ package logisticRegression
 
 import scala.util.Random
 import scala.math.{exp, sqrt}
-import spark.{RDD, SparkContext}
-import spark.util.Vector
+import org.apache.spark.util.Vector
+import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
 
-import scalala.tensor.dense._
-import scalala.library.Plotting._
+import breeze.plot._
 
 /**
  * Created with IntelliJ IDEA.
@@ -26,7 +26,7 @@ object logReg {
   val D = 2
 
   // spark context settings
-  val sc = new SparkContext("local[2]", "SparkLR", System.getenv("SPARK_HOME"), Seq(System.getenv("SPARK_EXAMPLES_JAR")), Map[String, String]())
+  val sc = new SparkContext("local[2]", "SparkLR", System.getenv("SPARK_HOME"), Seq(System.getenv("SPARK_EXAMPLES_JAR")))
 
   case class DataPoint(x: Vector, y: Double)
 
@@ -60,12 +60,12 @@ object logReg {
     (temp.filter(_._2 <= p).map(_._1), temp.filter(_._2 > p).map(_._1))
   }
 
-  def learningCurvePlot(iterNb: Array[Int], cost: Array[Double]): Unit = {
-    plot.hold = true
-    plot(iterNb, cost)
-    ylim(0.0, cost.max * 1.1)
-    xlabel("Iteration")
-    ylabel("Cost")
+  def learningCurvePlot(iterNb: Array[Double], cost: Array[Double]): Unit = {
+    val f = Figure()
+    val p = f.subplot(0)
+    p += plot(iterNb, cost)
+    p.xlabel = "Iteration"
+    p.ylabel = "Cost"
   }
 
   def localLogReg(initWeight: Vector, iteration: Int, learningRate: Double, testThreshold: Double) = {
@@ -81,7 +81,7 @@ object logReg {
     val (trainingSet, remainingSet) = split(generalizedPoints, 0.6)
     val (validationSet, testSet) = split(remainingSet, 0.5)
     val (trnSetNb, vldSetNb, tstSetNb) = (trainingSet.count.toDouble, validationSet.count.toDouble, testSet.count.toDouble)
-    println("Distribution = " +(trnSetNb / M, vldSetNb / M, tstSetNb / M))                    // 0.6 : 0.2 : 0.2
+    println("Distribution = " +(trnSetNb / M, vldSetNb / M, tstSetNb / M)) // 0.6 : 0.2 : 0.2
 
     // Initialization                                                         `
     var w = initWeight
@@ -106,7 +106,7 @@ object logReg {
       w -= gradient * learningRate
       val cost = costFunction
       println("cost_" + i + " = " + cost)
-      (i, cost)
+      (i.toDouble, cost)
     }
 
     // Cross Validation
@@ -131,22 +131,21 @@ object logReg {
        * PCA is needed for projecting data to the first plane
        */
 
-      subplot(2, 1, 2)
-
-      val positive = scaledPoints.filter(_.y == 1)
-      val negative = scaledPoints.filter(_.y == 0)
-      val pos_x = positive.map(_.x(0)).collect
-      val pos_y = positive.map(_.x(1)).collect
-      val neg_x = negative.map(_.x(0)).collect
-      val neg_y = negative.map(_.x(1)).collect
-      val seq = DenseVector.tabulate(1000)(x => (x / 1000.0) * 4 - 2)
-
-      plot.hold = true
-      plot(pos_x, pos_y, '.')
-      plot(neg_x, neg_y, '.')
-      plot(seq, -seq * w(1) / w(2) - w(0) / w(2))
-      xlabel("x1")
-      ylabel("x2")
+      //      val positive = scaledPoints.filter(_.y == 1)
+      //      val negative = scaledPoints.filter(_.y == 0)
+      //      val pos_x = positive.map(_.x(0)).collect
+      //      val pos_y = positive.map(_.x(1)).collect
+      //      val neg_x = negative.map(_.x(0)).collect
+      //      val neg_y = negative.map(_.x(1)).collect
+      //      val seq = DenseVector.tabulate(1000)(x => (x / 1000.0) * 4 - 2)
+      //
+      //      val f = Figure()
+      //      val p = f.subplot(2,1,1)
+      //      p += plot(pos_x, pos_y, '.')
+      //      p += plot(neg_x, neg_y, '.')
+      //      p += plot(seq, -seq * w(1) / w(2) - w(0) / w(2))
+      //      p.xlabel = "x1"
+      //      p.ylabel = "x2"
     }
   }
 

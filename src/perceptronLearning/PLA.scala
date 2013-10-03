@@ -1,8 +1,9 @@
 package perceptronLearning
 
 import scala.util.Random
-import spark.util.Vector
-import scalala.library.Plotting._
+import org.apache.spark.util.Vector
+
+import breeze.plot._
 
 /**
  * Created with IntelliJ IDEA.
@@ -24,19 +25,22 @@ object PLA {
       tgw dot pt
     }
 
-    def plotBoundary(): Unit = {
+    def plotBoundary() = {
       val xs = Array(-1, 1)
-      plot.hold = true
-      plot(xs, xs.map(-w1 * _ + -w0), '-', "blue")
-      xlim(-1, 1)
-      ylim(-1, 1)
-      xlabel("x")
-      ylabel("y")
+
+      val f = Figure()
+      val p = f.subplot(0)
+      p += plot(xs.map(_.toDouble), xs.map(-w1 * _ + -w0), '-', "blue")
+      p.xlim = (-1, 1)
+      p.ylim = (-1, 1)
+      p.xlabel = "x"
+      p.ylabel = "y"
+      p
     }
   }
 
   def runPLA(plotFlag: Boolean) = {
-    val N = 10
+    val N = 100
     val tf = new targetFunction(generatePoint, generatePoint)
     val dataSet = Array.tabulate(N)(_ => generatePoint)
     var w = Vector(0, 0, 0)
@@ -51,19 +55,19 @@ object PLA {
     }
 
     if (plotFlag) {
-      val xs = Array(-1, 1)
-      tf.plotBoundary()
-      plot.hold = true
-      plot(xs, xs.map(x => (w(0) + w(1) * x) / -w(2)), '-', "red")
-      plot(dataSet.filter(pt => sign(tf(pt)) == 1).map(_(1)), dataSet.filter(pt => sign(tf(pt)) == 1).map(_(2)), '+')
-      plot(dataSet.filter(pt => sign(tf(pt)) == -1).map(_(1)), dataSet.filter(pt => sign(tf(pt)) == -1).map(_(2)), '.')
+      val xs = Array(-1.0, 1.0)
+      val p = tf.plotBoundary()
 
-      xlim(-1, 1)
-      ylim(-1, 1)
-      xlabel("x")
-      ylabel("y")
+      p += plot(xs, xs.map(x => (w(0) + w(1) * x) / -w(2)), '-', "red")
+      val oneSide = dataSet.filter(pt => sign(tf(pt)) == 1)
+      val theOtherSide = dataSet.filter(pt => sign(tf(pt)) == -1)
+      p += plot(oneSide.map(_(1)), oneSide.map(_(2)), '+')
+      p += plot(theOtherSide.map(_(1)), theOtherSide.map(_(2)), '.')
+      p.xlim = (-1, 1)
+      p.ylim = (-1, 1)
+      p.xlabel = "x"
+      p.ylabel = "y"
     }
-
     cnt
   }
 
