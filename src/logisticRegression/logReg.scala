@@ -1,12 +1,11 @@
 package logisticRegression
 
-import scala.util.Random
-import scala.math.{exp, sqrt}
+import breeze.plot._
 import org.apache.spark.util.Vector
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-
-import breeze.plot._
+import scala.util.Random
+import scala.math.{exp, sqrt}
 
 /**
  * Created with IntelliJ IDEA.
@@ -26,7 +25,7 @@ object logReg {
   val D = 2
 
   // spark context settings
-  val sc = new SparkContext("local[2]", "SparkLR", System.getenv("SPARK_HOME"), Seq(System.getenv("SPARK_EXAMPLES_JAR")))
+  val sc = new SparkContext("local[2]", "SparkLR", System.getenv("SPARK_HOME"), null)
 
   case class DataPoint(x: Vector, y: Double)
 
@@ -60,13 +59,6 @@ object logReg {
     (temp.filter(_._2 <= p).map(_._1), temp.filter(_._2 > p).map(_._1))
   }
 
-  def learningCurvePlot(iterNb: Array[Double], cost: Array[Double]): Unit = {
-    val f = Figure()
-    val p = f.subplot(0)
-    p += plot(iterNb, cost)
-    p.xlabel = "Iteration"
-    p.ylabel = "Cost"
-  }
 
   def localLogReg(initWeight: Vector, iteration: Int, learningRate: Double, testThreshold: Double) = {
     // data loading
@@ -123,29 +115,33 @@ object logReg {
     // Visualisation
     def plotLogRegFigures() = {
 
+      // plot learning curve
       val (iterSeq, costSeq) = costList.unzip
-      learningCurvePlot(iterSeq.toArray, costSeq.toArray)
+      val f = Figure()
+      val p = f.subplot(2, 1, 0)
+      p += plot(iterSeq, costSeq)
+      p.xlabel = "Iteration"
+      p.ylabel = "Cost"
 
       /**
        * Note that boundary visualization is a 2dPlot
        * PCA is needed for projecting data to the first plane
        */
 
-      //      val positive = scaledPoints.filter(_.y == 1)
-      //      val negative = scaledPoints.filter(_.y == 0)
-      //      val pos_x = positive.map(_.x(0)).collect
-      //      val pos_y = positive.map(_.x(1)).collect
-      //      val neg_x = negative.map(_.x(0)).collect
-      //      val neg_y = negative.map(_.x(1)).collect
-      //      val seq = DenseVector.tabulate(1000)(x => (x / 1000.0) * 4 - 2)
-      //
-      //      val f = Figure()
-      //      val p = f.subplot(2,1,1)
-      //      p += plot(pos_x, pos_y, '.')
-      //      p += plot(neg_x, neg_y, '.')
-      //      p += plot(seq, -seq * w(1) / w(2) - w(0) / w(2))
-      //      p.xlabel = "x1"
-      //      p.ylabel = "x2"
+      val positive = scaledPoints.filter(_.y == 1)
+      val negative = scaledPoints.filter(_.y == 0)
+      val pos_x = positive.map(_.x(0)).collect
+      val pos_y = positive.map(_.x(1)).collect
+      val neg_x = negative.map(_.x(0)).collect
+      val neg_y = negative.map(_.x(1)).collect
+      val seq = Array.tabulate(1000)(x => (x / 1000.0) * 4 - 2)
+
+      val p2 = f.subplot(2, 1, 1)
+      p2 += plot(pos_x, pos_y, '.')
+      p2 += plot(neg_x, neg_y, '.')
+      p2 += plot(seq, seq.map(-_ * w(1) / w(2) - w(0) / w(2)))
+      p2.xlabel = "x1"
+      p2.ylabel = "x2"
     }
   }
 
