@@ -1,19 +1,17 @@
-package perceptronLearning
+package linearRegression
 
-import scala.util.Random
 import org.apache.spark.util.Vector
-
+import scala.util.Random
 import breeze.plot._
 
 /**
- * Created with IntelliJ IDEA.
- * User: cloudera
- * Date: 10/3/13
- * Time: 2:15 PM
+ *
+ * Author: coderh
+ * Date: 10/12/13
+ * Time: 12:42 AM
+ *
  */
-
-object PLA {
-
+object linReg {
   class targetFunction(pt1: Vector, pt2: Vector) {
 
     val w2 = 1
