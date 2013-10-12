@@ -4,7 +4,6 @@ import org.apache.spark.util.Vector
 import scala.util.Random
 import breeze.plot._
 import breeze.linalg._
-import org.apache.spark.SparkContext
 
 /**
  *
@@ -36,7 +35,7 @@ object linReg {
     if (x > 0) 1.0 else -1.0
   }
 
-  def runPLA(plotFlag: Boolean = false) = {
+  def run(plotFlag: Boolean = false) = {
 
     val N = 10
     val D = 3
@@ -93,10 +92,10 @@ object linReg {
     // Ein
     //    val err_in = dataSet.count(isMisclassified).toDouble / N
     //
-    //    // Eout
-    //    val n = 1000
-    //    val err_out = List.tabulate(n)(_ => generatePoint).count(isMisclassified).toDouble / n
-    //    (err_in, err_out)
+//        // Eout
+//        val n = 1000
+//        val err_out = List.tabulate(n)(_ => generatePoint).count(isMisclassified).toDouble / n
+//        (err_in, err_out)
     cnt
   }
 
@@ -108,7 +107,7 @@ object linReg {
     //        val (in, out) = (1 to iteration).map(_ => runPLA()).unzip
     //        println("result: " +(in.sum / iteration, out.sum / iteration))
 
-    val res = (1 to iteration).map(_ => runPLA()).sum / iteration
+    val res = (1 to iteration).map(_ => run()).sum / iteration
     println(res)
   }
 }
