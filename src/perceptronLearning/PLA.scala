@@ -27,6 +27,7 @@ object PLA {
     }
   }
 
+
   def generatePoint = {
     Vector(1, 2 * Random.nextFloat - 1, 2 * Random.nextFloat - 1)
   }
