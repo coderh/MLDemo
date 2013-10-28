@@ -5,12 +5,11 @@ import breeze.linalg._
 import breeze.plot._
 
 /**
- *
  * Author: coderh
  * Date: 10/12/13
  * Time: 11:52 AM
- *
  */
+
 object nonLinTrans {
 
   case class DataPoint(x: DenseVector[Double], y: Double)
