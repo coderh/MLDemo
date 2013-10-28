@@ -30,15 +30,19 @@ object genError {
 
   // Devroye Bound
   def bound_4(N: Double) = quadraticEquationSolver(2 * N - 4, -4, -log(4 * m_H(N * N) / delta))
+
   //  def bound_4(N: Double) = quadraticEquationSolver(2 * N - 4, -4, -(log10(4) + 400) / log10(E) + log(delta))
 
   def main(args: Array[String]) {
-
     val N = 5
     println(bound_1(N))
     println(bound_2(N))
     println(bound_3(N))
     println(bound_4(N))
+
+    val ns = List(400000, 420000, 440000, 460000, 480000)
+    def diff(N: Int) = sqrt(8 / N.toDouble * log(4 * pow(2 * N, 10) / 0.05)) - 0.05
+    println(ns.map(diff).mkString("\n"))
 
     // TODO: plot curve
   }
