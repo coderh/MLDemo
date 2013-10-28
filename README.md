@@ -1,4 +1,6 @@
-logReg
-======
+Machine Learning Algorithm Demos
+================================
 
-A logistic regression program in use of Spark and Scalala
+A serie of demos on the basic ML algo.
+
+Most of the demos are based on the homework of "Learning From Data", which is an introductory Machine Learning course given by CalTech on EDX
