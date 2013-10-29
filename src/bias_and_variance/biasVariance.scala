@@ -119,7 +119,7 @@ object biasVariance {
 //        a * x + b
 //        a * x * x
 //        a * x * x + b
-    }
+//    }
 
     // variance (just for hypo 2)
     //    def variance = {
