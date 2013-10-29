@@ -99,34 +99,38 @@ object biasVariance {
 
     def hypo(x: Double) = {
       // b_bar
-      a_bar * x
+      // a_bar * x
       // line_bar(0) + line_bar(1) * x
       // quad_bar * x * x
-      // qwi_bar(0) + qwi_bar(1) * x * x
+      quadWithIntercept_bar(0) + quadWithIntercept_bar(1) * x * x
     }
 
     // bias
-    def bias = {
+    def bias_func = {
       x: Double => scala.math.pow(hypo(x) - func(x), 2) * distFunc
     }
-    println("bias = " + integration(bias, -1, 1))
 
-    // TODO
-//    def g(a: Double, b: Double) = {
-//      x: Int =>
-//        b
-//        a * x
-//        a * x + b
-//        a * x * x
-//        a * x * x + b
-//    }
+    val bias = integration(bias_func, -1, 1)
+    println("bias = " + bias)
 
-    // variance (just for hypo 2)
-    //    def variance = {
-    //      x: Double => as.map(a => scala.math.pow(a * x - hypo(x), 2)).sum / as.size * distFunc
-    //    }
-    //    println("variance = " + integration(variance, -1, 1))
+    // variance
+    def variance_func = {
 
+      val funcList =
+      //        bs.map(b => (x: Double) => b)
+      //        as.map(a => (x: Double) => a * x)
+      //        lines.map(l => (x: Double) => l(0) + l(1) * x)
+      //        quadList.map(q => (x: Double) => q * x * x)
+        quadWithInterceptList.map(qwi => (x: Double) => qwi(0) + qwi(1) * x * x)
+      x: Double => funcList.map(g => scala.math.pow(g(x) - hypo(x), 2)).sum / as.size * distFunc
+    }
+
+    val variance = integration(variance_func, -1, 1)
+    println("variance = " + variance)
+
+    // expected out-of-sample error = bias + variance
+    val outOfSampleError = bias + variance
+    println("expected out-of-sample error = " + outOfSampleError)
 
     if (true) {
       val fig = Figure()
