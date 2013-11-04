@@ -1,4 +1,4 @@
-package logisticRegression
+package sparkLogisticRegression
 
 import breeze.plot._
 import org.apache.spark.util.Vector
