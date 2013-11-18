@@ -1,8 +1,12 @@
 package support_vector_machine
 
 import scala.util.Random
-import breeze.linalg.DenseVector
+import breeze.linalg.{DenseMatrix, DenseVector, inv}
 import breeze.plot._
+
+import org.apache.spark.SparkContext
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.classification.SVMWithSGD
 
 
 /**
@@ -12,59 +16,108 @@ import breeze.plot._
  * Time: 6:08 PM
  *
  */
-object PLA_vs_SVM {
 
-  trait experiment {
+trait experiment {
 
 
-    case class DataPoint(x: DenseVector[Double], y: Double) {
-      def this(arr: Array[Double]) {
-        this(DenseVector(arr.init), arr.last)
-      }
-
-      def errorMeasure(weight: DenseVector[Double]) = {
-        if (this.x.dot(weight) * this.y > 0) 0 else 1
-      }
+  case class DataPoint(x: DenseVector[Double], y: Double) {
+    def this(arr: Array[Double]) {
+      this(DenseVector(arr.init), arr.last)
     }
 
-    def extendPoint(pt: DataPoint) = {
-      val x = DenseVector(1.0 +: pt.x.toArray)
-      DataPoint(x, pt.y)
-    }
-
-    def generateDataPoint(dim: Int, targetFunc: DenseVector[Double] => Double) = {
-      val x = DenseVector.tabulate(dim)(_ => 2 * Random.nextDouble() - 1)
-      DataPoint(x, targetFunc(DenseVector(1.0 +: x.toArray)))
-    }
-
-  }
-
-  object SVM extends experiment {
-
-    def run(N: Int) = {
-      0
+    def errorMeasure(weight: DenseVector[Double]) = {
+      if (this.x.dot(weight) * this.y > 0) 0 else 1
     }
   }
 
-  object PLA extends experiment {
+  def extendPoint(pt: DataPoint) = {
+    val x = DenseVector(1.0 +: pt.x.toArray)
+    DataPoint(x, pt.y)
+  }
 
-    def run(N: Int) = {
+  def generateDataPoint(dim: Int, targetFunc: DenseVector[Double] => Double) = {
+    val x = DenseVector.tabulate(dim)(_ => 2 * Random.nextDouble() - 1)
+    DataPoint(x, targetFunc(DenseVector(1.0 +: x.toArray)))
+  }
 
-      val pt1 = DenseVector(2 * Random.nextDouble() - 1, 2 * Random.nextDouble() - 1)
-      val pt2 = DenseVector(2 * Random.nextDouble() - 1, 2 * Random.nextDouble() - 1)
-      val w2 = pt2(0) - pt1(0)
-      val w1 = pt1(1) - pt2(1)
-      val w0 = pt2(1) * pt1(0) - pt1(1) * pt2(0)
-      val tf = (x: DenseVector[Double]) => if ((DenseVector(w0, w1, w2) dot x) > 0) 1.0 else -1.0
+}
 
-      val d = 2
+object PLA_vs_SVM extends experiment {
+
+  // TODO: correct it!
+  // settings
+  val pt1 = DenseVector(2 * Random.nextDouble() - 1, 2 * Random.nextDouble() - 1)
+  val pt2 = DenseVector(2 * Random.nextDouble() - 1, 2 * Random.nextDouble() - 1)
+  val w2 = pt2(0) - pt1(0)
+  val w1 = pt1(1) - pt2(1)
+  val w0 = pt2(1) * pt1(0) - pt1(1) * pt2(0)
+  val tf = (x: DenseVector[Double]) => if ((DenseVector(w0, w1, w2) dot x) > 0) 1.0 else -1.0
+
+  // dimension
+  val d = 2
+
+  // nb of data points
+  val N = 10
+
+  // generate data sets
+  var dataSet = List.tabulate(N)(_ => generateDataPoint(d, tf))
+  while (dataSet.forall(_.y > 0) || dataSet.forall(_.y < 0)) {
+    dataSet = List.tabulate(N)(_ => generateDataPoint(d, tf))
+  }
+  val extendedDataSet = dataSet.map(extendPoint)
 
 
-      var dataSet = List.tabulate(N)(_ => generateDataPoint(d, tf))
-      while (dataSet.forall(_.y > 0) || dataSet.forall(_.y < 0)) {
-        dataSet = List.tabulate(N)(_ => generateDataPoint(d, tf))
-      }
-      val extendedDataSet = dataSet.map(extendPoint)
+
+//  val sc = new SparkContext("local[2]", "SparkLR", System.getenv("SPARK_HOME"), null)
+
+  object SVM {
+
+//    def run_spark() = {
+//
+//
+//      val parsedData = dataSet.map(pt => LabeledPoint(if (pt.y > 0) 1 else 0, pt.x.toArray)).toSeq
+//      val rddData = sc.parallelize(parsedData)
+//
+//      val numIterations = 30
+//      val model = SVMWithSGD.train(rddData, numIterations)
+//
+//      val n = 100000
+//      val testData = sc.parallelize(Array.tabulate(n)(_ => generateDataPoint(d, tf)).map(pt => LabeledPoint(if (pt.y > 0) 1 else 0, pt.x.toArray)).toSeq, 2)
+//
+//      val labelAndPreds = testData.map {
+//        point =>
+//          val prediction = model.predict(point.features)
+//          (point.label, prediction)
+//      }
+//
+//      val err = labelAndPreds.filter(r => r._1 != r._2).count.toDouble / n
+//      err
+//    }
+
+    def run() = {
+
+      val C = DenseVector.tabulate(N)(_ => -1.0)
+      val Q = DenseMatrix.tabulate(N, N)((i: Int, j: Int) => (dataSet(i).x dot dataSet(j).x) * dataSet(i).y * dataSet(j).y)
+
+      //      var Z = DenseMatrix.tabulate(N, N)((i: Int, j: Int) => Random.nextDouble())
+      val Z = Q
+      //    val Z = DenseMatrix.eye[Double](N)
+      val alpha_prim = inv(Z.t * Q * Z) * (-Z.t * C)
+      val alpha = Z * alpha_prim
+
+      //      while (!alpha.toArray.forall(_ >= 0)) {
+      //        Z = DenseMatrix.tabulate(N, N)((i: Int, j: Int) => Random.nextDouble())
+      //        //    val Z = DenseMatrix.eye[Double](N)
+      //        alpha_prim = -inv(Z.t * Q * Z) * (-Z.t * C)
+      //        alpha = Z * alpha_prim
+      //      }
+      alpha
+    }
+  }
+
+  object PLA {
+
+    def run() = {
 
       var w = DenseVector[Double](0, 0, 0)
 
@@ -119,11 +172,16 @@ object PLA_vs_SVM {
 
 
   def main(args: Array[String]) = {
-    val N = 10
-    val iter = 1
-    val perf_pla = for (i <- 1 to iter) yield PLA.run(N)
-    val perf_svm = for (i <- 1 to iter) yield SVM.run(N)
-    val percentage = (perf_pla zip perf_svm).count(p => p._1 > p._2).toDouble / iter
-    println(percentage)
+    var a = SVM.run()
+    while(!a.toArray.forall(_ >= 0)){
+      a = SVM.run()
+    }
+
+    println(a)
+    //    val iter = 1000
+    //    val perf_pla = for (i <- 1 to iter) yield PLA.run()
+    //    val perf_svm = for (i <- 1 to iter) yield SVM.run_spark()
+    //    val percentage = (perf_pla zip perf_svm).count(p => p._1 > p._2).toDouble / iter
+    //    println(percentage)
   }
 }
