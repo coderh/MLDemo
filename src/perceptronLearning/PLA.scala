@@ -14,7 +14,7 @@ import scala.util.Random
 
 object PLA {
 
-  val sc = new SparkContext("local[2]", "SparkLR", System.getenv("SPARK_HOME"), null)
+  //  val sc = new SparkContext("local[2]", "SparkLR", System.getenv("SPARK_HOME"), null)
 
   case class targetFunction(pt1: Vector, pt2: Vector) {
     val w2 = 1.0
@@ -86,7 +86,8 @@ object PLA {
 
     // error
     val n = 100000
-    val err = sc.parallelize(Array.tabulate(n)(_ => generatePoint), 2).cache().filter(isMisclassified).count.toDouble / n
+    //    val err = sc.parallelize(Array.tabulate(n)(_ => generatePoint), 2).cache().filter(isMisclassified).count.toDouble / n
+    val err = Array.tabulate(n)(_ => generatePoint).count(isMisclassified).toDouble / n
     (cnt, err)
   }
 
