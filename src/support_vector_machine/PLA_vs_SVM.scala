@@ -1,14 +1,9 @@
 package support_vector_machine
 
 import scala.util.Random
-import breeze.linalg.{DenseMatrix, DenseVector, inv}
+import breeze.linalg.{DenseMatrix, DenseVector}
 import breeze.plot._
-
-import org.apache.spark.SparkContext
-import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.mllib.classification.SVMWithSGD
 import libsvm._
-
 
 /**
  *
@@ -46,7 +41,22 @@ trait experiment {
     DataPoint(x, tFunc(DenseVector(1.0 +: x.toArray)))
   }
 
-  def plotData(dataSet: List[DataPoint], tf: targetFunc) = {
+}
+
+object PLA_vs_SVM extends experiment {
+
+  // dimension
+  val d = 2
+
+  // nb of data points
+  val N = 10
+
+  def plotData(dataSet: List[DataPoint],
+               tf: targetFunc,
+               plaWeights: List[Double] = Nil,
+               svmWeights: List[Double] = Nil,
+               sptVcts: List[DenseVector[Double]] = Nil) = {
+
     val f = Figure()
     val p = f.subplot(0)
 
@@ -60,31 +70,27 @@ trait experiment {
     val xs = Array(-1.0, 1.0)
 
     // draw f(x)
-    p += plot(xs, xs.map(x => (tf.weights(0) + tf.weights(1) * x) / -tf.weights(2)), '-', "red")
-
-    // draw g(x)
-    //    p += plot(xs, xs.map(x => (w(0) + w(1) * x) / -w(2)), '-', "blue")
+    p += plot(xs, xs.map(x => (tf.weights(0) + tf.weights(1) * x) / -tf.weights(2)), '-', "r")
 
     // draw data
     val oneSide = dataSet.filter(_.y > 0).map(_.x)
     val theOtherSide = dataSet.filter(_.y < 0).map(_.x)
-    p += plot(oneSide.map(_(0)), oneSide.map(_(1)), '+')
-    p += plot(theOtherSide.map(_(0)), theOtherSide.map(_(1)), '.')
+    p += plot(oneSide.map(_(0)), oneSide.map(_(1)), '.', "g")
+    p += plot(theOtherSide.map(_(0)), theOtherSide.map(_(1)), '.', "m")
+
+    // draw hypo
+    if (!plaWeights.isEmpty)
+      p += plot(xs, xs.map(x => (plaWeights(0) + plaWeights(1) * x) / -plaWeights(2)), '-', "b")
+
+    if (!sptVcts.isEmpty && !svmWeights.isEmpty) {
+      p += plot(sptVcts.map(_(0)), sptVcts.map(_(1)), '+')
+      p += plot(xs, xs.map(x => (svmWeights(0) + svmWeights(1) * x) / -svmWeights(2)), '-', "b")
+    }
+
+    p
   }
 
-}
-
-object PLA_vs_SVM extends experiment {
-
-  // TODO: correct it!
-  // dimension
-  val d = 2
-
-  // nb of data points
-  val N = 10
-
-  def main(args: Array[String]) = {
-
+  def singleRun() = {
     // settings
     val pt1 = DenseVector(2 * Random.nextDouble() - 1, 2 * Random.nextDouble() - 1)
     val pt2 = DenseVector(2 * Random.nextDouble() - 1, 2 * Random.nextDouble() - 1)
@@ -97,22 +103,31 @@ object PLA_vs_SVM extends experiment {
       dataSet = List.tabulate(N)(_ => generateDataPoint(d, tf))
     }
 
-    SVM.run(dataSet, tf)
-    //    PLA.run(dataSet, tf)
+    SVM.run(dataSet, tf, true)
+    //(SVM.run(dataSet, tf), PLA.run(dataSet, tf))
 
-    //    val iter = 1000
-    //    val perf_pla = for (i <- 1 to iter) yield PLA.run()
-    //    val perf_svm = for (i <- 1 to iter) yield SVM.run_spark()
-    //    val percentage = (perf_pla zip perf_svm).count(p => p._1 > p._2).toDouble / iter
-    //    println(percentage)
   }
 
+  def main(args: Array[String]) = {
 
-  //  val sc = new SparkContext("local[2]", "SparkLR", System.getenv("SPARK_HOME"), null)
+    singleRun
+
+//    val iteration = 1000
+//    val percentage = (1 to iteration).map(x => singleRun()).count(p => p._1 < p._2).toDouble / iteration
+//
+//    println
+//    println(percentage)
+  }
 
   object SVM {
 
-    def run(dataSet: List[DataPoint], tf: targetFunc) = {
+    def solver(dataSet: List[DataPoint], tf: targetFunc) = {
+      val one = DenseVector.tabulate(N)(_ => 1.0)
+      val Q = DenseMatrix.tabulate(N, N)((i: Int, j: Int) => (dataSet(i).x dot dataSet(j).x) * dataSet(i).y * dataSet(j).y)
+      (Q, one)
+    }
+
+    def run(dataSet: List[DataPoint], tf: targetFunc, draw: Boolean = false) = {
 
       val prob = new svm_problem() {
         this.l = dataSet.size
@@ -132,26 +147,40 @@ object PLA_vs_SVM extends experiment {
       val param = new svm_parameter {
         this.svm_type = 0
         this.kernel_type = 0
-        this.eps = 0.0001
+        this.eps = 0.001
         this.nr_weight = 0
-        this.shrinking = 0
-        this.probability = 0
+        this.cache_size = 10
+        this.C = Double.PositiveInfinity
       }
 
-      plotData(dataSet, tf)
+      val check = svm.svm_check_parameter(prob, param)
+      val model = if (check == null) svm.svm_train(prob, param) else throw new Error("Wrong SVM parameters: " + check)
+      val svs = model.SV.toList.map {
+        case xs: Array[svm_node] => DenseVector[Double](xs(0).value, xs(1).value)
+      }
 
-      val model: svm_model = svm.svm_train(prob, param)
+      val coefficients = model.sv_coef.toList.head.toList
+      val w = (svs zip coefficients map (p => p._1 * p._2)).reduce[DenseVector[Double]](_ + _)
+      val b = tf(DenseVector(1.0 +: svs.head.toArray)) - w.dot(svs.head)
+      val hypoWeights = DenseVector(b +: w.toArray)
 
-      //      val one = DenseVector.tabulate(N)(_ => 1.0)
-      //      val Q = DenseMatrix.tabulate(N, N)((i: Int, j: Int) => (dataSet(i).x dot dataSet(j).x) * dataSet(i).y * dataSet(j).y)
-      //      val alpha = inv(Q) * one
-      val res = prob.x(0)(1).value
-      println(model.l)
+      println(hypoWeights)
+
+      if (draw)
+        plotData(dataSet, tf, svmWeights = hypoWeights.toArray.toList, sptVcts = svs)
+
+      def isMisclassified(pt: DataPoint) = (pt.x dot hypoWeights) * pt.y <= 0
+
+      // error
+      val n = 100000
+      val err = List.tabulate(n)(_ => generateDataPoint(d, tf)).map(extendPoint).count(isMisclassified).toDouble / n
+      err
     }
   }
+
   object PLA {
 
-    def run(dataSet: List[DataPoint], tf: targetFunc) = {
+    def run(dataSet: List[DataPoint], tf: targetFunc, draw: Boolean = false) = {
 
       var w = DenseVector[Double](0, 0, 0)
       val extendedDataSet = dataSet.map(extendPoint)
@@ -165,16 +194,14 @@ object PLA_vs_SVM extends experiment {
         misclassifiedSet = extendedDataSet.filter(isMisclassified)
       }
 
-      plotData(dataSet, tf)
+      if (draw)
+        plotData(dataSet, tf, plaWeights = w.toArray.toList)
 
       // error
       val n = 100000
-      //    val err = sc.parallelize(Array.tabulate(n)(_ => generatePoint), 2).cache().filter(isMisclassified).count.toDouble / n
       val err = List.tabulate(n)(_ => generateDataPoint(d, tf)).map(extendPoint).count(isMisclassified).toDouble / n
-
       err
-      //    println(w)
-      //    println(err)
     }
   }
+
 }
