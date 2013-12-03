@@ -108,16 +108,16 @@ object PLA_vs_SVM extends experiment {
 
   }
 
-  def main(args: Array[String]) = {
-
-    singleRun
+//  def main(args: Array[String]) = {
+//
+//    singleRun
 
 //    val iteration = 1000
 //    val percentage = (1 to iteration).map(x => singleRun()).count(p => p._1 < p._2).toDouble / iteration
 //
 //    println
 //    println(percentage)
-  }
+//  }
 
   object SVM {
 
