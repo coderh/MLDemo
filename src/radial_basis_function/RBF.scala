@@ -1,11 +1,11 @@
 package radial_basis_function
 
-import breeze.linalg.DenseVector
+import breeze.linalg.{DenseMatrix, DenseVector, inv}
 import scala.util.Random
 import scala.math._
 import libsvm._
-import scala.Array
 import libsvm.svm._
+import scala.Array
 import breeze.plot._
 
 /**
@@ -18,6 +18,8 @@ import breeze.plot._
 
 
 object RBF {
+  type DataSet = List[DataPoint]
+
 
   def targetFunc(x: DenseVector[Double]): Double = {
     require(x.length == 2)
@@ -54,7 +56,82 @@ object RBF {
     this.value = v(1)
   })
 
+  def Lloyd(data: DataSet, K: Int): DataSet = {
+
+    val dim = 2
+    val labeledDataSet = data.map(pt => DataPoint(pt.x, -1))
+
+    // init centers
+    var centers = List.tabulate(K)(i => DataPoint(DenseVector.tabulate(dim)(_ => 2 * Random.nextDouble() - 1), i))
+
+    // init clusters
+    var clusteredDataSet: DataSet = Nil
+
+    // var temp
+    var centers_old: DataSet = Nil
+
+    def isCenterChanged(centerSet1: DataSet, centerSet2: DataSet) = {
+      centerSet1.sortBy(_.y) zip centerSet2.sortBy(_.y) exists (p => (p._1.x - p._2.x).sum != 0)
+    }
+
+    var discard = false
+
+    do {
+
+      centers_old = centers
+      clusteredDataSet = labeledDataSet map {
+        case pt =>
+          val distList = centers.map(center => ((center.x - pt.x).dot(center.x - pt.x), center.y))
+          val clusterLable = distList.minBy(_._1)._2
+          DataPoint(pt.x, clusterLable)
+      }
+
+      // test all cluster exist
+      if (clusteredDataSet.groupBy(_.y).size != K) {
+        discard = true
+      } else {
+        centers = (clusteredDataSet groupBy (_.y) map {
+          case pair =>
+            val mean = pair._2.map(_.x).reduce[DenseVector[Double]](_ + _) / pair._2.size.toDouble
+            DataPoint(mean, pair._1)
+        }).toList
+      }
+
+
+    } while (isCenterChanged(centers_old, centers) && !discard)
+
+    if (discard) Nil else centers.sortBy(_.y).toList
+  }
+
+  def RBF_regular(trainingSet: DataSet, testSet: DataSet, K: Int, gamma: Double) = {
+    val N = trainingSet.size
+    var cter = Lloyd(trainingSet, K)
+
+    while (cter.isEmpty) {
+      cter = Lloyd(trainingSet, K)
+    }
+
+    //    plotData(trainingSet, centers = cter)
+
+    val X = DenseMatrix.tabulate(N, K + 1)((i: Int, j: Int) => {
+      if (j == 0) 1 else exp(-gamma * (trainingSet(i).x - cter(j - 1).x).dot(trainingSet(i).x - cter(j - 1).x))
+    })
+    val Xt = X.t
+    val Y = DenseVector(trainingSet.map(_.y).toArray)
+    val w = inv(Xt * X) * Xt * Y
+
+    def hypo(x: DenseVector[Double]) = {
+      val basisFuncList = DenseVector(1.0 +: cter.map(ct => exp(-gamma * (x - ct.x).dot(x - ct.x))).toArray)
+      if (w.dot(basisFuncList) > 0) 1 else -1
+    }
+
+    val E_in = trainingSet.count(pt => hypo(pt.x) * pt.y < 0) / trainingSet.size.toDouble
+    val E_out = testSet.count(pt => hypo(pt.x) * pt.y < 0) / testSet.size.toDouble
+    (E_in, E_out)
+  }
+
   def plotData(dataSet: List[DataPoint],
+               centers: List[DataPoint] = Nil,
                SVs: List[DenseVector[Double]] = Nil) = {
 
     val f = Figure()
@@ -78,12 +155,14 @@ object RBF {
     val oneSide = dataSet.filter(_.y > 0).map(_.x)
     val theOtherSide = dataSet.filter(_.y < 0).map(_.x)
     p += plot(oneSide.map(_(0)), oneSide.map(_(1)), '.', "g")
-    p += plot(theOtherSide.map(_(0)), theOtherSide.map(_(1)), '.', "m")
+    p += plot(theOtherSide.map(_(0)), theOtherSide.map(_(1)), '.', "b")
 
-    // draw hypo
+    if (!centers.isEmpty) {
+      p += plot(centers.map(_.x(0)), centers.map(_.x(1)), '+', "m")
+    }
 
     if (!SVs.isEmpty) {
-      p += plot(SVs.map(_(0)), SVs.map(_(1)), '+')
+      p += plot(SVs.map(_(0)), SVs.map(_(1)), '+', "y")
     }
   }
 
@@ -92,10 +171,12 @@ object RBF {
     exp(-gamma * (SV - X).dot(SV - X))
   }
 
-  def RBF_kernel() = {
-    val N = 100
+  def generateDataSet(N: Int) = {
     val D = 2
-    val trainingSet = List.tabulate(N)(_ => generateDataPoint(D))
+    List.tabulate(N)(_ => generateDataPoint(D))
+  }
+
+  def RBF_kernel(trainingSet: DataSet, testSet: DataSet) = {
 
     val prob = new svm_problem() {
       this.l = trainingSet.size
@@ -139,36 +220,50 @@ object RBF {
     //    plotData(trainingSet, SVs)
 
     //    val E_in = trainingSet.count(pt => svm_predict(model, vector2svmNode(pt.x)) * pt.y < 0).toDouble / trainingSet.size
+    val E_out = testSet.count(pt => svm_predict(model, vector2svmNode(pt.x)) * pt.y < 0).toDouble / testSet.size
+
     //    val b = model.rho.head
-    val coef = model.sv_coef.head.toList
-    val refPoint = trainingSet.find(_.x == SVs.head) match {
-      case Some(x) => x
-      case None => throw new Error("SV is not in training set")
-    }
-    val b = refPoint.y - (coef zip SVs).map(p => p._1 * kernel(p._2)(refPoint.x)).sum
-
-    def g(x: DenseVector[Double]) = {
-      val r = (coef zip SVs).map(p => p._1 * kernel(p._2)(x)).sum + b
-      if (r > 0) 1 else -1
-    }
-
-    val E_in = trainingSet.map(pt => pt.y * g(pt.x)).count(_ < 0).toDouble / trainingSet.size
+    //    val coef = model.sv_coef.head.toList
+    //    val refPoint = trainingSet.find(_.x == SVs.head) match {
+    //      case Some(x) => x
+    //      case None => throw new Error("SV is not in training set")
+    //    }
+    //    val b = refPoint.y - (coef zip SVs).map(p => p._1 * kernel(p._2)(refPoint.x)).sum
+    //
+    //    def g(x: DenseVector[Double]) = {
+    //      val r = (coef zip SVs).map(p => p._1 * kernel(p._2)(x)).sum + b
+    //      if (r > 0) 1 else -1
+    //    }
+    //
+    //    val E_in = trainingSet.map(pt => pt.y * g(pt.x)).count(_ < 0).toDouble / trainingSet.size
     //    (b, bb)
-    E_in
+    E_out
   }
 
   def solution() = {
-    val nbIter = 10000
-    val res = (1 to nbIter).map(_ => RBF_kernel).count(_ != 0.0).toDouble / nbIter.toDouble
-    println(res)
+    val trainingSet = generateDataSet(100)
+    val testSet = generateDataSet(10000)
+    val K = 9
+    val gamma = 1.5
+    //    val kernelPerf = RBF_kernel(trainingSet, testSet)
+    val (e_in, e_out) = RBF_regular(trainingSet, testSet, K, gamma)
+
+    // cases:
+    //    val a = if (perf2._1 < perf1._1 && perf2._2 > perf1._2) 1 else 0
+    //    val b = if (perf2._1 > perf1._1 && perf2._2 < perf1._2) 1 else 0
+    //    val c = if (perf2._1 > perf1._1 && perf2._2 > perf1._2) 1 else 0
+    //    val d = if (perf2._1 < perf1._1 && perf2._2 < perf1._2) 1 else 0
+    //    val e = if (perf2._1 == perf1._1 && perf2._2 == perf1._2) 1 else 0
+    //    DenseVector(a, b, c, d, e)
+    e_in
   }
 
-  def RBF_regular() = {
-
-  }
 
   def main(args: Array[String]) = {
-    solution
-    //    println(SVM)
+    //    solution
+    val iter = 1000
+    //    val perc = (1 to iter).map(_ => solution).count(_ < 0) / iter.toDouble
+    val v = (1 to iter).map(_ => solution).count(_ == 0) / iter.toDouble
+    println(v)
   }
 }

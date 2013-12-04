@@ -1,4 +1,4 @@
-package coinFlipping
+package coin_flipping
 
 import scala.util.Random
 

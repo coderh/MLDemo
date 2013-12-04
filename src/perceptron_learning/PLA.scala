@@ -1,4 +1,4 @@
-package perceptronLearning
+package perceptron_learning
 
 import breeze.plot._
 import org.apache.spark.util.Vector

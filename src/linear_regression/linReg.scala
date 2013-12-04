@@ -1,4 +1,4 @@
-package linearRegression
+package linear_regression
 
 import org.apache.spark.util.Vector
 import scala.util.Random

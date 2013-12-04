@@ -1,4 +1,4 @@
-package generalizationError
+package generalization_error
 
 import scala.math._
 

@@ -1,4 +1,4 @@
-package nonlinearTransformation
+package non_linear_transformation
 
 import scala.util.Random
 import breeze.linalg._
